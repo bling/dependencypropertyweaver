@@ -1,0 +1,10 @@
+﻿<Window x:Class="DependencyPropertyWeaver.Tests.Wpf.SimpleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SimpleClassWindow" Height="300" Width="300">
+	<StackPanel>
+		<TextBox x:FieldModifier="public" Name="PrimitiveTextBox" Text="{Binding Primitive, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        <TextBox x:FieldModifier="public" Name="ReferenceTextBox" Text="{Binding Reference, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        <TextBox x:FieldModifier="public" Name="ValueTypeTextBox" Text="{Binding ValueType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+	</StackPanel>
+</Window>
