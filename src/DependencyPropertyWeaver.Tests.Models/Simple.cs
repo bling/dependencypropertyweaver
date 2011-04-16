@@ -15,4 +15,15 @@ namespace DependencyPropertyWeaver.Tests.Models
     {
         public int X { get; protected set; }
     }
+
+    public static class Static
+    {
+        public static int X { get; set; }
+    }
+
+    public class Attached
+    {
+        public static double Mass { get; protected set; }
+        public static double Volume { get; set; }
+    }
 }

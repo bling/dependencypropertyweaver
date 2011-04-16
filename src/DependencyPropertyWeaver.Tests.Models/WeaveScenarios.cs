@@ -2,8 +2,10 @@
 
 namespace DependencyPropertyWeaver.Tests.Models
 {
-    public class SimpleDP : DependencyObject
+    public class SimpleDependencyObject : DependencyObject
     {
+        public static string Name { get; set; }
+
         public int Index { get; set; }
     }
 

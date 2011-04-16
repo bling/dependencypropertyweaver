@@ -11,6 +11,14 @@ namespace DependencyPropertyWeaver.Tests
         public class When_Getter_Setter_Auto_Property : WpfTestBase<SimpleWindow>
         {
             [Test]
+            public void Static_dependency_property_fields_exist()
+            {
+                Assert.IsNotNull(Simple.PrimitiveDependencyProperty);
+                Assert.IsNotNull(Simple.ReferenceDependencyProperty);
+                Assert.IsNotNull(Simple.ValueTypeDependencyProperty);
+            }
+
+            [Test]
             public void Primitive_types_are_weaved()
             {
                 Assert.AreEqual(Window.ViewModel.Primitive, 0);

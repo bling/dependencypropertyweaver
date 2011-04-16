@@ -2,23 +2,36 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Windows;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using FieldAttributes = Mono.Cecil.FieldAttributes;
-using MethodAttributes = Mono.Cecil.MethodAttributes;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
 
 namespace DependencyPropertyWeaver
 {
-    public class StandardAssemblyWeaver : AssemblyWeaverBase
+    public class DependencyPropertyWeaver : AssemblyWeaverBase
     {
-        public StandardAssemblyWeaver(Assembly assembly, AssemblyDefinition definition)
+        public DependencyPropertyWeaver(Assembly assembly, AssemblyDefinition definition)
             : base(assembly, definition)
         {
         }
 
-        public void Modify(IEnumerable<IGrouping<TypeDefinition, PropertyDefinition>> types)
+        public override void Weave(string typePatternMatch)
+        {
+            var properties = from module in Definition.Modules
+                             from type in module.Types
+                             where string.IsNullOrEmpty(typePatternMatch) || Regex.IsMatch(type.Name, typePatternMatch)
+                             from p in type.Properties
+                             let method = p.SetMethod ?? p.GetMethod
+                             where !method.IsStatic
+                             select p;
+
+            var types = properties.GroupBy(p => p.DeclaringType);
+            Modify(types);
+        }
+
+        private void Modify(IEnumerable<IGrouping<TypeDefinition, PropertyDefinition>> types)
         {
             foreach (var t in types)
             {
@@ -57,15 +70,7 @@ namespace DependencyPropertyWeaver
                 if (!prop.IsAutoPropertyGetter())
                     continue;
 
-                var staticCtor = prop.DeclaringType.Methods.SingleOrDefault(m => m.Name == ".cctor");
-                if (staticCtor == null)
-                {
-                    staticCtor = new MethodDefinition(".cctor",
-                                                      MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName,
-                                                      Definition.ImportType(Type.GetType("System.Void")));
-                    prop.DeclaringType.Methods.Add(staticCtor);
-                    staticCtor.Body.GetILProcessor().Emit(OpCodes.Ret);
-                }
+                var staticCtor = GetStaticCtor(prop.DeclaringType);
 
                 string propName = prop.Name;
                 var ff = prop.DeclaringType.Fields.Single(f => f.Name.Contains("BackingField") && f.Name.Contains(propName));
@@ -141,20 +146,6 @@ namespace DependencyPropertyWeaver
             }
             proc.Emit(OpCodes.Call, setValue);
             proc.Emit(OpCodes.Ret);
-        }
-
-        private static FieldReference GetStaticDependencyPropertyField(TypeDefinition type, string propertyName)
-        {
-            var field = type.Fields.SingleOrDefault(f => f.Name == propertyName + "DependencyProperty");
-            if (field == null)
-            {
-                field = new FieldDefinition(propertyName + "DependencyProperty",
-                                            FieldAttributes.Static | FieldAttributes.Public | FieldAttributes.InitOnly,
-                                            type.Module.Import(typeof(DependencyProperty)));
-                type.Fields.Add(field);
-            }
-
-            return field;
         }
     }
 }

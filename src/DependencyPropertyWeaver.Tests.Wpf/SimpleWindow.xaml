@@ -1,6 +1,6 @@
 ﻿<Window x:Class="DependencyPropertyWeaver.Tests.Wpf.SimpleWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:Models="clr-namespace:DependencyPropertyWeaver.Tests.Models;assembly=DependencyPropertyWeaver.Tests.Models"
         Title="SimpleClassWindow" Height="300" Width="300">
 	<StackPanel>
 		<TextBox x:FieldModifier="public" Name="PrimitiveTextBox" Text="{Binding Primitive, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />

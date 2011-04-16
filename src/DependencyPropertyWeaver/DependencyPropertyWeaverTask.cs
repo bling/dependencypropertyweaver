@@ -1,16 +1,15 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Text.RegularExpressions;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 using Mono.Cecil;
+using Mono.Cecil.Pdb;
 
 namespace DependencyPropertyWeaver
 {
-    public class DependencyPropertyWeaverTask : AppDomainIsolatedTask
+    public class DependencyPropertyWeaverTask : Task
     {
         /// <summary>
         /// Gets or sets the regular expression to match on the type name.
@@ -52,7 +51,11 @@ namespace DependencyPropertyWeaver
                         if (Weave(assembly, definition))
                         {
                             Log("Weaving changes into " + file);
-                            definition.Write(file, new WriterParameters { WriteSymbols = true });
+                            definition.Write(file, new WriterParameters
+                                {
+                                    SymbolWriterProvider = new PdbWriterProvider(),
+                                    WriteSymbols = true,
+                                });
                         }
                     }
                 }
@@ -67,16 +70,8 @@ namespace DependencyPropertyWeaver
 
         private bool Weave(Assembly assembly, AssemblyDefinition definition)
         {
-            var properties = from module in definition.Modules
-                             from type in module.Types
-                             where string.IsNullOrEmpty(TypePatternMatch) || Regex.IsMatch(type.Name, TypePatternMatch)
-                             from p in type.Properties
-                             select p;
-
-            var types = properties.GroupBy(p => p.DeclaringType);
-
-            var saw = new StandardAssemblyWeaver(assembly, definition);
-            saw.Modify(types);
+            var saw = new DependencyPropertyWeaver(assembly, definition);
+            saw.Weave(TypePatternMatch);
 
             return saw.HasChanges;
         }

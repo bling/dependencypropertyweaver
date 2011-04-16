@@ -36,8 +36,8 @@
     <Reference Include="Mono.Cecil">
       <HintPath>..\..\lib\Mono.Cecil.dll</HintPath>
     </Reference>
-    <Reference Include="nunit.framework">
-      <HintPath>..\..\lib\nunit.framework.dll</HintPath>
+    <Reference Include="Mono.Cecil.Pdb">
+      <HintPath>..\..\lib\Mono.Cecil.Pdb.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -51,7 +51,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyWeaverBase.cs" />
-    <Compile Include="StandardAssemblyWeaver.cs" />
+    <Compile Include="AttachedDependencyPropertyWeaver.cs" />
+    <Compile Include="DependencyPropertyWeaver.cs" />
     <Compile Include="DependencyPropertyWeaverTask.cs" />
     <Compile Include="ExtensionMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
