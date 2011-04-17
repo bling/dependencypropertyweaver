@@ -17,7 +17,7 @@ namespace DependencyPropertyWeaver
         {
         }
 
-        public override void Weave(string typePatternMatch)
+        public override void Weave(string typePatternMatch, string attributePatternMatch)
         {
             typePatternMatch = "Attached";
             var properties = from module in Definition.Modules

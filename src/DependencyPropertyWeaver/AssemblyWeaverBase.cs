@@ -26,7 +26,7 @@ namespace DependencyPropertyWeaver
             Definition = definition;
         }
 
-        public abstract void Weave(string typePatternMatch);
+        public abstract void Weave(string typePatternMatch, string attributePatternMatch);
 
         protected MethodDefinition GetStaticCtor(TypeDefinition type)
         {

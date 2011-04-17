@@ -17,9 +17,9 @@ namespace DependencyPropertyWeaver
         public string TypePatternMatch { get; set; }
 
         /// <summary>
-        /// Gets or sets the name of the attribute class used to mark types or properties to be injected.
+        /// Gets or sets the regular expression to match on the attribute class used to mark types or properties.
         /// </summary>
-        public string AttributeName { get; set; }
+        public string AttributePatternMatch { get; set; }
 
         /// <summary>
         /// Gets or sets the files to weave.
@@ -71,7 +71,7 @@ namespace DependencyPropertyWeaver
         private bool Weave(Assembly assembly, AssemblyDefinition definition)
         {
             var saw = new DependencyPropertyWeaver(assembly, definition);
-            saw.Weave(TypePatternMatch);
+            saw.Weave(TypePatternMatch, AttributePatternMatch);
 
             return saw.HasChanges;
         }

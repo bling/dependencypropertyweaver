@@ -17,14 +17,19 @@ namespace DependencyPropertyWeaver
         {
         }
 
-        public override void Weave(string typePatternMatch)
+        public override void Weave(string typePatternMatch, string attributePatternMatch)
         {
             var properties = from module in Definition.Modules
                              from type in module.Types
-                             where string.IsNullOrEmpty(typePatternMatch) || Regex.IsMatch(type.Name, typePatternMatch)
+                             where string.IsNullOrEmpty(typePatternMatch) ||
+                                   Regex.IsMatch(type.Name, typePatternMatch)
+                             where string.IsNullOrEmpty(attributePatternMatch) ||
+                                   type.CustomAttributes.Any(a => Regex.IsMatch(a.AttributeType.FullName, attributePatternMatch))
                              from p in type.Properties
                              let method = p.SetMethod ?? p.GetMethod
                              where !method.IsStatic
+                             where string.IsNullOrEmpty(attributePatternMatch) ||
+                                   p.CustomAttributes.Any(a => Regex.IsMatch(a.AttributeType.FullName, attributePatternMatch))
                              select p;
 
             var types = properties.GroupBy(p => p.DeclaringType);
