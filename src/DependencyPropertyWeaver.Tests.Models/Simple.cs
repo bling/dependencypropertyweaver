@@ -15,9 +15,4 @@ namespace DependencyPropertyWeaver.Tests.Models
     {
         public int X { get; protected set; }
     }
-
-    public static class Static
-    {
-        public static int X { get; set; }
-    }
 }

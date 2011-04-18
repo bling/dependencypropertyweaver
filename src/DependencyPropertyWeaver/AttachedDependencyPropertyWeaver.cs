@@ -20,7 +20,6 @@ namespace DependencyPropertyWeaver
 
         public override void Weave(string typePatternMatch, string attributePatternMatch)
         {
-            typePatternMatch = "Attached";
             var properties = from module in Definition.Modules
                              from type in module.Types
                              where string.IsNullOrEmpty(typePatternMatch) || Regex.IsMatch(type.Name, typePatternMatch)
@@ -47,6 +46,10 @@ namespace DependencyPropertyWeaver
 
                     AddGetterMethod(prop, field);
                     AddSetterMethod(prop, field);
+
+                    var name = prop.Name;
+                    var backingField = prop.DeclaringType.Fields.Single(f => f.Name.Contains("BackingField") && f.Name.Contains(name));
+                    t.Key.Fields.Remove(backingField);
 
                     t.Key.Methods.Remove(prop.GetMethod);
                     t.Key.Methods.Remove(prop.SetMethod);

@@ -32,11 +32,5 @@ namespace DependencyPropertyWeaver.Tests
             Assert.IsNotNull(Abstract.ADependencyProperty);
             Assert.IsNotNull(Subclass.BDependencyProperty);
         }
-
-        [Test]
-        public void Static_properties_are_ignored()
-        {
-            Assert.IsEmpty(typeof(Static).GetFields(BindingFlags.Public | BindingFlags.Static));
-        }
     }
 }
