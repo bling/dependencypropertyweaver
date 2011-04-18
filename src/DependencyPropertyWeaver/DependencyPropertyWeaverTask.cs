@@ -70,10 +70,13 @@ namespace DependencyPropertyWeaver
 
         private bool Weave(Assembly assembly, AssemblyDefinition definition)
         {
-            var saw = new DependencyPropertyWeaver(assembly, definition);
-            saw.Weave(TypePatternMatch, AttributePatternMatch);
+            AssemblyWeaverBase weaver = new DependencyPropertyWeaver(assembly, definition);
+            weaver.Weave(TypePatternMatch, AttributePatternMatch);
 
-            return saw.HasChanges;
+            weaver = new AttachedDependencyPropertyWeaver(assembly, definition);
+            weaver.Weave(TypePatternMatch, AttributePatternMatch);
+
+            return weaver.HasChanges;
         }
     }
 }

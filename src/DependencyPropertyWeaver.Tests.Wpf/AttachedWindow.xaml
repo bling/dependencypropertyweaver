@@ -1,0 +1,7 @@
+﻿<Window x:Class="DependencyPropertyWeaver.Tests.Wpf.AttachedWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:m="clr-namespace:DependencyPropertyWeaver.Tests.Models;assembly=DependencyPropertyWeaver.Tests.Models"
+        Title="AttachedWindow" Height="300" Width="300">
+    <Grid m:Attached.Height="100" m:Attached.Width="100">
+    </Grid>
+</Window>
