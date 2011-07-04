@@ -7,7 +7,7 @@ using System.Windows;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using MethodAttributes = Mono.Cecil.MethodAttributes;
-using MethodBody = Mono.Cecil.Cil.MethodBody;
+using ParameterAttributes = Mono.Cecil.ParameterAttributes;
 
 namespace DependencyPropertyWeaver
 {
@@ -20,107 +20,123 @@ namespace DependencyPropertyWeaver
 
         public override void Weave(string typePatternMatch, string attributePatternMatch)
         {
-            var properties = from module in Definition.Modules
-                             from type in module.Types
-                             where string.IsNullOrEmpty(typePatternMatch) || Regex.IsMatch(type.Name, typePatternMatch)
-                             from p in type.Properties
-                             let set = p.SetMethod
-                             let get = p.GetMethod
-                             where (set != null && set.IsStatic) || (get != null && get.IsStatic)
-                             where p.IsAutoPropertyGetter() || p.IsAutoPropertySetter()
-                             select p;
-
-            var types = properties.GroupBy(p => p.DeclaringType);
-            Modify(types);
+            foreach (var type in from module in Definition.Modules
+                                 from type in module.Types
+                                 where string.IsNullOrEmpty(typePatternMatch) || Regex.IsMatch(type.Name, typePatternMatch)
+                                 select type)
+                Modify(type);
         }
 
-        private void Modify(IEnumerable<IGrouping<TypeDefinition, PropertyDefinition>> types)
+        private void Modify(TypeDefinition type)
         {
-            foreach (var t in types)
+            foreach (var field in FindAttachedPropertyFields(type))
             {
-                var staticCtor = GetStaticCtor(t.Key);
-                foreach (var prop in t.ToArray())
-                {
-                    var field = GetStaticDependencyPropertyField(t.Key, prop.Name);
-                    WeaveDependencyPropertyCtor(staticCtor.Body, field, prop);
-
-                    AddGetterMethod(prop, field);
-                    AddSetterMethod(prop, field);
-
-                    var name = prop.Name;
-                    var backingField = prop.DeclaringType.Fields.Single(f => f.Name.Contains("BackingField") && f.Name.Contains(name));
-                    t.Key.Fields.Remove(backingField);
-
-                    t.Key.Methods.Remove(prop.GetMethod);
-                    t.Key.Methods.Remove(prop.SetMethod);
-                    t.Key.Properties.Remove(prop);
-                }
+                HasChanges = true;
+                AddGetterMethod(field);
+                AddSetterMethod(field);
             }
         }
 
-        private void WeaveDependencyPropertyCtor(MethodBody staticCtorBody, FieldReference field, PropertyDefinition property)
+        private class AttachedPropertyField
         {
-            var assembly = property.DeclaringType.Module.Assembly;
-            var propertyType = assembly.ImportType(Type.GetType(property.PropertyType.FullName));
-            var getTypeFromHandle = assembly.ImportMethod(typeof(Type).GetMethod("GetTypeFromHandle"));
-            var register = assembly.ImportMethod(typeof(DependencyProperty).GetMethod("RegisterAttached", new[] { typeof(string), typeof(Type), typeof(Type) }));
-
-            // ignore previously weaved DPs
-            if (staticCtorBody.Instructions.Any(i => i.Operand != null && i.Operand.ToString() == field.ToString()))
-            {
-                return;
-            }
-
-            var ret = staticCtorBody.Instructions.Last();
-            if (ret.OpCode != OpCodes.Ret)
-                throw new InvalidOperationException("The last instruction should be OpCode.Ret");
-
-            HasChanges = true;
-
-            var proc = staticCtorBody.GetILProcessor();
-            proc.InsertBefore(ret, proc.Create(OpCodes.Ldstr, property.Name));
-            proc.InsertBefore(ret, proc.Create(OpCodes.Ldtoken, propertyType));
-            proc.InsertBefore(ret, proc.Create(OpCodes.Call, getTypeFromHandle));
-            proc.InsertBefore(ret, proc.Create(OpCodes.Ldtoken, property.DeclaringType));
-            proc.InsertBefore(ret, proc.Create(OpCodes.Call, getTypeFromHandle));
-            proc.InsertBefore(ret, proc.Create(OpCodes.Call, register));
-            proc.InsertBefore(ret, proc.Create(OpCodes.Stsfld, field));
+            public string PropertyName;
+            public TypeReference PropertyType;
+            public TypeReference DeclaringType;
+            public FieldReference FieldReference;
         }
 
-        private void AddGetterMethod(PropertyReference property, FieldReference field)
+        private IEnumerable<AttachedPropertyField> FindAttachedPropertyFields(TypeDefinition typeDef)
         {
-            var method = new MethodDefinition("Get" + property.Name,
+            var cctor = GetStaticCtor(typeDef);
+            string propertyName = null;
+            TypeReference type = null;
+            TypeReference declaringType = null;
+            for (int i = 0; i < cctor.Body.Instructions.Count; i++)
+            {
+                var ins = cctor.Body.Instructions[i];
+                if (ins.OpCode != OpCodes.Ldstr)
+                    continue;
+
+                propertyName = ins.Operand.ToString();
+
+                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
+                if (ins == null) continue;
+
+                if (ins.OpCode == OpCodes.Ldtoken)
+                    type = (TypeReference)ins.Operand;
+
+                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
+                if (ins == null) continue;
+
+                if (ins.OpCode == OpCodes.Call && ins.Operand.ToString().Contains("GetTypeFromHandle"))
+                    ;
+
+                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
+                if (ins == null) continue;
+
+                if (ins.OpCode == OpCodes.Ldtoken)
+                    declaringType = (TypeReference)ins.Operand;
+
+                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
+                if (ins == null) continue;
+
+                if (ins.OpCode == OpCodes.Call && ins.Operand.ToString().Contains("GetTypeFromHandle"))
+                    ;
+
+                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
+                if (ins == null) continue;
+
+                if (ins.OpCode == OpCodes.Call && ins.Operand.ToString().Contains("RegisterAttached"))
+                    ;
+
+                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
+                if (ins == null) continue;
+
+                if (ins.OpCode == OpCodes.Stsfld)
+                    yield return new AttachedPropertyField
+                                     {
+                                         PropertyName = propertyName,
+                                         DeclaringType = declaringType,
+                                         PropertyType = type,
+                                         FieldReference = (FieldReference)ins.Operand
+                                     };
+            }
+        }
+
+        private void AddGetterMethod(AttachedPropertyField field)
+        {
+            var method = new MethodDefinition("Get" + field.PropertyName,
                                               MethodAttributes.FamANDAssem | MethodAttributes.Family | MethodAttributes.Static | MethodAttributes.HideBySig,
-                                              property.PropertyType);
+                                              field.PropertyType);
 
-            method.Parameters.Add(new ParameterDefinition(Definition.ImportType<UIElement>()));
+            method.Parameters.Add(new ParameterDefinition("dependencyObject", ParameterAttributes.None, Definition.ImportType<DependencyObject>()));
 
             var proc = method.Body.GetILProcessor();
             proc.Emit(OpCodes.Ldarg_0);
-            proc.Emit(OpCodes.Ldsfld, field);
+            proc.Emit(OpCodes.Ldsfld, field.FieldReference);
             proc.Emit(OpCodes.Callvirt, Definition.ImportMethod(typeof(DependencyObject).GetMethod("GetValue")));
-            proc.Emit(property.PropertyType.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, property.PropertyType);
+            proc.Emit(field.PropertyType.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, field.PropertyType);
             proc.Emit(OpCodes.Ret);
 
             field.DeclaringType.Resolve().Methods.Add(method);
         }
 
-        private void AddSetterMethod(PropertyReference property, FieldReference field)
+        private void AddSetterMethod(AttachedPropertyField field)
         {
-            var method = new MethodDefinition("Set" + property.Name,
+            var method = new MethodDefinition("Set" + field.PropertyName,
                                               MethodAttributes.FamANDAssem | MethodAttributes.Family | MethodAttributes.Static | MethodAttributes.HideBySig,
                                               Definition.ImportType(Type.GetType("System.Void")));
 
-            method.Parameters.Add(new ParameterDefinition(Definition.ImportType<UIElement>()));
-            method.Parameters.Add(new ParameterDefinition(property.PropertyType));
+            method.Parameters.Add(new ParameterDefinition("dependencyObject", ParameterAttributes.None, Definition.ImportType<DependencyObject>()));
+            method.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None, field.PropertyType));
 
             var proc = method.Body.GetILProcessor();
             proc.Emit(OpCodes.Ldarg_0);
-            proc.Emit(OpCodes.Ldsfld, field);
+            proc.Emit(OpCodes.Ldsfld, field.FieldReference);
             proc.Emit(OpCodes.Ldarg_1);
-            if (property.PropertyType.IsValueType)
+            if (field.PropertyType.IsValueType)
             {
-                proc.Emit(OpCodes.Box, property.PropertyType);
+                proc.Emit(OpCodes.Box, field.PropertyType);
             }
             proc.Emit(OpCodes.Callvirt, Definition.ImportMethod(typeof(DependencyObject).GetMethod("SetValue", new[] { typeof(DependencyProperty), typeof(object) })));
             proc.Emit(OpCodes.Ret);

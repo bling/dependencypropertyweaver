@@ -1,9 +1,11 @@
-﻿namespace DependencyPropertyWeaver.Tests.Models
+﻿using System.Windows;
+
+namespace DependencyPropertyWeaver.Tests.Models
 {
     public static class Attached
     {
-        public static int Width { get; set; }
-        public static int Height { get; set; }
-        public static string Text { get; set; }
+        public static readonly DependencyProperty WidthProperty = DependencyProperty.RegisterAttached("Width", typeof(int), typeof(Attached));
+        public static readonly DependencyProperty HeightProperty = DependencyProperty.RegisterAttached("Height", typeof(int), typeof(Attached));
+        public static readonly DependencyProperty TextProperty = DependencyProperty.RegisterAttached("Text", typeof(string), typeof(Attached));
     }
 }

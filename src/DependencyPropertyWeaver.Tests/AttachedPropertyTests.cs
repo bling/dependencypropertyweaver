@@ -15,10 +15,16 @@ namespace DependencyPropertyWeaver.Tests
         }
 
         [Test]
-        public void Static_auto_props_are_weaved_into_methods()
+        public void Static_DependencyProperties_Generate_Getter_And_Setter()
         {
             Attached.SetHeight(base.Window, 100);
             Assert.AreEqual(100, Attached.GetHeight(base.Window));
+
+            Attached.SetWidth(base.Window, 100);
+            Assert.AreEqual(100, Attached.GetWidth(base.Window));
+
+            Attached.SetText(base.Window, "test");
+            Assert.AreEqual("test", Attached.GetText(base.Window));
         }
     }
 }
