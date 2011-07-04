@@ -32,8 +32,15 @@ namespace DependencyPropertyWeaver
             foreach (var field in FindAttachedPropertyFields(type))
             {
                 HasChanges = true;
-                AddGetterMethod(field);
-                AddSetterMethod(field);
+                if (field.IsReadOnly)
+                {
+                    AddReadOnlyGetterMethod(field);
+                }
+                else
+                {
+                    AddGetterMethod(field);
+                    AddSetterMethod(field);
+                }
             }
         }
 
@@ -43,6 +50,7 @@ namespace DependencyPropertyWeaver
             public TypeReference PropertyType;
             public TypeReference DeclaringType;
             public FieldReference FieldReference;
+            public bool IsReadOnly;
         }
 
         private IEnumerable<AttachedPropertyField> FindAttachedPropertyFields(TypeDefinition typeDef)
@@ -51,55 +59,61 @@ namespace DependencyPropertyWeaver
             string propertyName = null;
             TypeReference type = null;
             TypeReference declaringType = null;
-            for (int i = 0; i < cctor.Body.Instructions.Count; i++)
+            var e = cctor.Body.Instructions.GetEnumerator();
+            while (e.MoveNext())
             {
-                var ins = cctor.Body.Instructions[i];
-                if (ins.OpCode != OpCodes.Ldstr)
+                if (e.Current.OpCode != OpCodes.Ldstr) continue;
+
+                propertyName = e.Current.Operand.ToString();
+
+                if (!e.MoveNext()) continue;
+
+                if (e.Current.OpCode == OpCodes.Ldtoken)
+                    type = (TypeReference)e.Current.Operand;
+
+                if (!e.MoveNext()) continue;
+
+                if (e.Current.OpCode != OpCodes.Call || e.Current.Operand.ToString() != "System.Type System.Type::GetTypeFromHandle(System.RuntimeTypeHandle)")
                     continue;
 
-                propertyName = ins.Operand.ToString();
+                if (!e.MoveNext()) continue;
 
-                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
-                if (ins == null) continue;
+                if (e.Current.OpCode == OpCodes.Ldtoken)
+                    declaringType = (TypeReference)e.Current.Operand;
 
-                if (ins.OpCode == OpCodes.Ldtoken)
-                    type = (TypeReference)ins.Operand;
+                if (!e.MoveNext()) continue;
 
-                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
-                if (ins == null) continue;
+                if (e.Current.OpCode != OpCodes.Call || e.Current.Operand.ToString() != "System.Type System.Type::GetTypeFromHandle(System.RuntimeTypeHandle)")
+                    continue;
 
-                if (ins.OpCode == OpCodes.Call && ins.Operand.ToString().Contains("GetTypeFromHandle"))
-                    ;
+                do
+                {
+                    // skip all the other overloads which could load additional variables (like property metadata)
+                    e.MoveNext();
+                } while (e.Current != null && e.Current.OpCode != OpCodes.Call);
 
-                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
-                if (ins == null) continue;
+                if (e.Current != null)
+                {
+                    bool isReadOnly;
+                    if (e.Current.Operand.ToString().Contains("System.Windows.DependencyProperty::RegisterAttached("))
+                        isReadOnly = false;
+                    else if (e.Current.Operand.ToString().Contains("System.Windows.DependencyProperty::RegisterAttachedReadOnly("))
+                        isReadOnly = true;
+                    else
+                        continue;
 
-                if (ins.OpCode == OpCodes.Ldtoken)
-                    declaringType = (TypeReference)ins.Operand;
+                    if (!e.MoveNext()) continue;
 
-                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
-                if (ins == null) continue;
-
-                if (ins.OpCode == OpCodes.Call && ins.Operand.ToString().Contains("GetTypeFromHandle"))
-                    ;
-
-                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
-                if (ins == null) continue;
-
-                if (ins.OpCode == OpCodes.Call && ins.Operand.ToString().Contains("RegisterAttached"))
-                    ;
-
-                ins = cctor.Body.Instructions.ElementAtOrDefault(++i);
-                if (ins == null) continue;
-
-                if (ins.OpCode == OpCodes.Stsfld)
-                    yield return new AttachedPropertyField
-                                     {
-                                         PropertyName = propertyName,
-                                         DeclaringType = declaringType,
-                                         PropertyType = type,
-                                         FieldReference = (FieldReference)ins.Operand
-                                     };
+                    if (e.Current.OpCode == OpCodes.Stsfld)
+                        yield return new AttachedPropertyField
+                        {
+                            PropertyName = propertyName,
+                            DeclaringType = declaringType,
+                            PropertyType = type,
+                            FieldReference = (FieldReference)e.Current.Operand,
+                            IsReadOnly = isReadOnly,
+                        };    
+                }
             }
         }
 
@@ -114,6 +128,25 @@ namespace DependencyPropertyWeaver
             var proc = method.Body.GetILProcessor();
             proc.Emit(OpCodes.Ldarg_0);
             proc.Emit(OpCodes.Ldsfld, field.FieldReference);
+            proc.Emit(OpCodes.Callvirt, Definition.ImportMethod(typeof(DependencyObject).GetMethod("GetValue")));
+            proc.Emit(field.PropertyType.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, field.PropertyType);
+            proc.Emit(OpCodes.Ret);
+
+            field.DeclaringType.Resolve().Methods.Add(method);
+        }
+
+        private void AddReadOnlyGetterMethod(AttachedPropertyField field)
+        {
+            var method = new MethodDefinition("Get" + field.PropertyName,
+                                              MethodAttributes.FamANDAssem | MethodAttributes.Family | MethodAttributes.Static | MethodAttributes.HideBySig,
+                                              field.PropertyType);
+
+            method.Parameters.Add(new ParameterDefinition("dependencyObject", ParameterAttributes.None, Definition.ImportType<DependencyObject>()));
+
+            var proc = method.Body.GetILProcessor();
+            proc.Emit(OpCodes.Ldarg_0);
+            proc.Emit(OpCodes.Ldsfld, field.FieldReference);
+            proc.Emit(OpCodes.Callvirt, Definition.ImportMethod(typeof(DependencyPropertyKey).GetMethod("get_DependencyProperty")));
             proc.Emit(OpCodes.Callvirt, Definition.ImportMethod(typeof(DependencyObject).GetMethod("GetValue")));
             proc.Emit(field.PropertyType.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, field.PropertyType);
             proc.Emit(OpCodes.Ret);

@@ -26,5 +26,12 @@ namespace DependencyPropertyWeaver.Tests
             Attached.SetText(base.Window, "test");
             Assert.AreEqual("test", Attached.GetText(base.Window));
         }
+
+        [Test]
+        public void AttachedReadOnly_Only_Generates_Getter()
+        {
+            Assert.AreEqual(1, Attached.GetReadOnly(base.Window));
+            Assert.IsNull(typeof(Attached).GetMethod("SetReadOnly"));
+        }
     }
 }
