@@ -34,11 +34,11 @@ namespace DependencyPropertyWeaver
                 HasChanges = true;
                 if (field.IsReadOnly)
                 {
-                    AddReadOnlyGetterMethod(field);
+                    AddGetterMethod(field, true);
                 }
                 else
                 {
-                    AddGetterMethod(field);
+                    AddGetterMethod(field, false);
                     AddSetterMethod(field);
                 }
             }
@@ -86,38 +86,38 @@ namespace DependencyPropertyWeaver
                 if (e.Current.OpCode != OpCodes.Call || e.Current.Operand.ToString() != "System.Type System.Type::GetTypeFromHandle(System.RuntimeTypeHandle)")
                     continue;
 
-                do
+                // skip all the other overloads which could load additional variables (like property metadata)
+                while (e.MoveNext())
                 {
-                    // skip all the other overloads which could load additional variables (like property metadata)
-                    e.MoveNext();
-                } while (e.Current != null && e.Current.OpCode != OpCodes.Call);
+                    if (e.Current.OpCode != OpCodes.Call)
+                        continue;
 
-                if (e.Current != null)
-                {
                     bool isReadOnly;
                     if (e.Current.Operand.ToString().Contains("System.Windows.DependencyProperty::RegisterAttached("))
                         isReadOnly = false;
                     else if (e.Current.Operand.ToString().Contains("System.Windows.DependencyProperty::RegisterAttachedReadOnly("))
                         isReadOnly = true;
                     else
-                        continue;
+                        break;
 
-                    if (!e.MoveNext()) continue;
+                    if (!e.MoveNext()) break;
 
                     if (e.Current.OpCode == OpCodes.Stsfld)
                         yield return new AttachedPropertyField
-                        {
-                            PropertyName = propertyName,
-                            DeclaringType = declaringType,
-                            PropertyType = type,
-                            FieldReference = (FieldReference)e.Current.Operand,
-                            IsReadOnly = isReadOnly,
-                        };    
+                                         {
+                                             PropertyName = propertyName,
+                                             DeclaringType = declaringType,
+                                             PropertyType = type,
+                                             FieldReference = (FieldReference)e.Current.Operand,
+                                             IsReadOnly = isReadOnly,
+                                         };
+
+                    break;
                 }
             }
         }
 
-        private void AddGetterMethod(AttachedPropertyField field)
+        private void AddGetterMethod(AttachedPropertyField field, bool isReadOnly)
         {
             var method = new MethodDefinition("Get" + field.PropertyName,
                                               MethodAttributes.FamANDAssem | MethodAttributes.Family | MethodAttributes.Static | MethodAttributes.HideBySig,
@@ -128,25 +128,9 @@ namespace DependencyPropertyWeaver
             var proc = method.Body.GetILProcessor();
             proc.Emit(OpCodes.Ldarg_0);
             proc.Emit(OpCodes.Ldsfld, field.FieldReference);
-            proc.Emit(OpCodes.Callvirt, Definition.ImportMethod(typeof(DependencyObject).GetMethod("GetValue")));
-            proc.Emit(field.PropertyType.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, field.PropertyType);
-            proc.Emit(OpCodes.Ret);
+            if (isReadOnly)
+                proc.Emit(OpCodes.Callvirt, Definition.ImportMethod(typeof(DependencyPropertyKey).GetMethod("get_DependencyProperty")));
 
-            field.DeclaringType.Resolve().Methods.Add(method);
-        }
-
-        private void AddReadOnlyGetterMethod(AttachedPropertyField field)
-        {
-            var method = new MethodDefinition("Get" + field.PropertyName,
-                                              MethodAttributes.FamANDAssem | MethodAttributes.Family | MethodAttributes.Static | MethodAttributes.HideBySig,
-                                              field.PropertyType);
-
-            method.Parameters.Add(new ParameterDefinition("dependencyObject", ParameterAttributes.None, Definition.ImportType<DependencyObject>()));
-
-            var proc = method.Body.GetILProcessor();
-            proc.Emit(OpCodes.Ldarg_0);
-            proc.Emit(OpCodes.Ldsfld, field.FieldReference);
-            proc.Emit(OpCodes.Callvirt, Definition.ImportMethod(typeof(DependencyPropertyKey).GetMethod("get_DependencyProperty")));
             proc.Emit(OpCodes.Callvirt, Definition.ImportMethod(typeof(DependencyObject).GetMethod("GetValue")));
             proc.Emit(field.PropertyType.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, field.PropertyType);
             proc.Emit(OpCodes.Ret);

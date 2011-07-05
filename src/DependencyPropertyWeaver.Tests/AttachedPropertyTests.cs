@@ -33,5 +33,15 @@ namespace DependencyPropertyWeaver.Tests
             Assert.AreEqual(1, Attached.GetReadOnly(base.Window));
             Assert.IsNull(typeof(Attached).GetMethod("SetReadOnly"));
         }
+
+        [Test]
+        public void Getters_And_Setters_For_Complicated_Dependency_Properties()
+        {
+            Attached.SetComplicated(base.Window, "yes");
+            Assert.AreEqual("yes", Attached.GetComplicated(base.Window));
+
+            Assert.AreEqual("complicatedReadOnly", Attached.GetComplicatedReadOnly(base.Window));
+            Assert.IsNull(typeof(Attached).GetMethod("SetComplicatedReadOnly"));
+        }
     }
 }
