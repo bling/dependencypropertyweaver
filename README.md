@@ -22,45 +22,32 @@ Will get weaved into this:
       }
     }
 
-Attached properties are also supported by weaving static properties.  For example:
+Attached properties are also supported.  For example:
 
     public static class Attached
     {
-        public static int Width { get; set; }
-        public static int Height { get; set; }
-        public static string Text { get; set; }
+        public static readonly DependencyProperty WidthProperty = DependencyProperty.RegisterAttached("Width", typeof(int), typeof(Attached));
+		public static readonly DependencyPropertyKey ReadOnlyProperty = DependencyProperty.RegisterAttachedReadOnly("ReadOnly", typeof(int), typeof(Attached), new PropertyMetadata(1));
     }
 
-Will get weaved into attached properties, like this:
+Will get weaved with the static getter/setter methods, like this:
 
 	public static class Attached
 	{
 		public static readonly DependencyProperty WidthDependencyProperty = DependencyProperty.RegisterAttached("Width", typeof(int), typeof(Attached));
-		public static readonly DependencyProperty HeightDependencyProperty = DependencyProperty.RegisterAttached("Height", typeof(int), typeof(Attached));
-		public static readonly DependencyProperty TextDependencyProperty = DependencyProperty.RegisterAttached("Text", typeof(string), typeof(Attached));
-		public static int GetWidth(UIElement uIElement)
+		public static readonly DependencyPropertyKey ReadOnlyProperty = DependencyProperty.RegisterAttachedReadOnly("ReadOnly", typeof(int), typeof(Attached), new PropertyMetadata(1));
+		
+		public static int GetWidth(DependencyObject dependencyObject)
 		{
-			return (int)uIElement.GetValue(Attached.WidthDependencyProperty);
+			return (int)dependencyObject.GetValue(Attached.WidthProperty);
 		}
-		public static void SetWidth(UIElement uIElement, int num)
+		public static void SetWidth(DependencyObject dependencyObject, int value)
 		{
-			uIElement.SetValue(Attached.WidthDependencyProperty, num);
+			dependencyObject.SetValue(Attached.WidthProperty, value);
 		}
-		public static int GetHeight(UIElement uIElement)
+		public static int GetReadOnly(DependencyObject dependencyObject)
 		{
-			return (int)uIElement.GetValue(Attached.HeightDependencyProperty);
-		}
-		public static void SetHeight(UIElement uIElement, int num)
-		{
-			uIElement.SetValue(Attached.HeightDependencyProperty, num);
-		}
-		public static string GetText(UIElement uIElement)
-		{
-			return (string)uIElement.GetValue(Attached.TextDependencyProperty);
-		}
-		public static void SetText(UIElement uIElement, string value)
-		{
-			uIElement.SetValue(Attached.TextDependencyProperty, value);
+			return (int)dependencyObject.GetValue(Attached.ReadOnlyProperty.DependencyProperty);
 		}
 	}
 
