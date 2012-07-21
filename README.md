@@ -55,7 +55,7 @@ Will get weaved with the static getter/setter methods, like this:
 
 Once compiled, you simply need to add this into the *AfterBuild* target of your projects.  Like so:
 
-    <UsingTask TaskName="DependencyPropertyWeaver.DependencyWeaverTask.dll"
+    <UsingTask TaskName="DependencyPropertyWeaver.DependencyPropertyWeaverTask"
                AssemblyFile="DependencyPropertyWeaver.dll" />
     <Target Name="AfterBuild">
         <ItemGroup>
